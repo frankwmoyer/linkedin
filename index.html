@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link type="text/css" rel="stylesheet" href="style.css"/>
+    <style type="text/css">
+
+#states path {
+  fill: #ccc;
+  stroke: #fff;
+}
+
+path.arc {
+  pointer-events: none;
+  fill: none;
+  stroke: #888;
+  stroke-width: 1px;
+
+}
+
+path.snarc {
+  pointer-events: none;
+  fill: none;
+  stroke: #FFCC00;
+  stroke-width: 1.5px;
+}
+
+circle {
+  fill: steelblue;
+  fill-opacity: .8;
+  stroke: #fff;
+}
+
+.schoolCircle {
+  fill: #222;
+  fill-opacity: .8;
+  stroke: #fff;
+}
+
+schoolText {
+  pointer-events: none;
+  font: 16px sans-serif;
+}
+
+    </style>
+
+  </head>
+  <body>
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+    <script type="text/javascript">
+
+var w = 1280,
+    h = 800;
+
+var projection = d3.geo.azimuthalEquidistant()
+    .scale(950)
+    .translate([600, 260])
+    .rotate([88,-35,7]);
+
+var path = d3.geo.path()
+    .projection(projection);
+
+var svg = d3.select("body").insert("svg:svg", "h2")
+    .attr("width", w)
+    .attr("height", h);
+
+var states = svg.append("svg:g")
+    .attr("id", "states");
+
+var circles = svg.append("svg:g")
+    .attr("id", "circles");
+
+var linez = svg.append("svg:g")
+    .attr("id", "linez");
+
+var schoolCircles = svg.append("svg:g")
+    .attr("id", "schoolCircles");
+
+var schoolText = svg.append("svg:g")
+    .attr("id", "schoolText");
+
+var cityText = svg.append("svg:g")
+    .attr("id", "cityText");
+
+var locationSchool = {},
+    locationCity = {},
+    migrationLines = [],
+    linksSchoolToCity = [],
+    citiesData = [],
+    schoolsData = [],
+    cityPositions = [];
+
+;
+
+var arc = d3.geo.greatArc()
+    .source(function(d) { 
+                          var locSource = locationSchool[d.source];
+                          if(locSource===null) { 
+                            console.log("errored out on source for source: " + d.source + " and target: " + d.target);
+                            return false;
+                          }
+                          return locSource;
+                        })
+    .target(function(d) { 
+                          var locTarget = locationCity[d.target];
+                          if(locTarget===null) { 
+                            console.log("errored out on target for source: " + d.source + " and target: " + d.target);
+                            return false;
+                          }
+                          return locTarget;
+                        });
+
+graduateCount = function(school, city) {
+  var gradcount = 0;
+  linksSchoolToCity.forEach( function(entry) {
+    if(entry.source==school  && entry.target==city) {
+      gradcount += parseInt(entry.gradCount,10);
+    }
+  });
+  return gradcount;
+};
+
+var dispatch = d3.dispatch("itemHover", "itemUnhover", "itemSelect", "itemDeselect");
+
+dispatch.on("itemHover", function(arg) {
+
+  linez.selectAll("path.arc")
+       .data(function() {
+                         var connections = linksSchoolToCity.filter(function(connection) {
+                               if(connection.source==arg) {
+                                  return true;
+                               }
+                             });
+                         return connections;
+                         })
+       .enter().append("svg:path")
+       .classed("arc", 1)
+       .attr("d", function(d) {
+                               var snark = path(arc(d));
+                               return snark;
+                               });
+     
+  circles.selectAll("circle")
+      .data(citiesData)
+        .transition()
+        .duration(1000)
+        .attr("r", function (d) { 
+                                 return Math.sqrt(graduateCount(arg, d.name)); 
+                                });
+
+  cityText.selectAll("cityText")
+        .data(citiesData)
+      .enter().append("svg:text")
+        .classed("cityText", 1)
+        .attr("dx", function(d, i) { 
+           if (locationCity[d.name][0] > locationSchool[arg][0])
+           {
+            return cityPositions[i][0] + Math.sqrt(graduateCount(arg, d.name));
+           }
+           else
+           {
+            return cityPositions[i][0] - Math.sqrt(graduateCount(arg, d.name)) - 45;
+           }
+        })
+        .attr("dy", function(d, i) {
+            raisey = (d.name == "Los Angeles" || d.name == "Austin" || d.name == "Atlanta" || d.name == "Boston") ? 20 : 0;
+            return cityPositions[i][1] + 0.5 * Math.sqrt(graduateCount(arg, d.name)) - raisey;
+        })
+        .style("font-size", "12px")
+        .style("font-family", "sans-serif")
+        .text(function (d) { 
+                                 return (Math.round(graduateCount(arg, d.name), 0) + " grads");
+                                 } );
+
+});
+
+dispatch.on("itemUnhover", function(arg) {
+
+      linez.selectAll("path.arc")
+           .data(function() {
+                             var connections = linksSchoolToCity.filter(function(connection) {
+                                   if(connection.source==arg) {
+                                     return true;
+                                   }
+                                 });
+                             return connections;
+                             })
+         .classed("arc", 0)
+         .remove();
+
+  circles.selectAll("circle")
+      .data(citiesData)
+      .transition()
+      .duration(1000)
+      .attr("r", 0);
+
+  cityText.selectAll("text")
+      .data(citiesData)
+      .classed("cityText", 0)
+      .remove();
+
+});
+
+d3.json("us-states.json", function(collection) {
+  states.selectAll("path")
+      .data(collection.features)
+    .enter().append("svg:path")
+      .attr("d", path);
+});
+
+d3.csv("cities.csv", function(cities) {
+
+  if(cities===null) {
+    return false;
+  }
+
+  citiesData = cities.slice(0);
+
+  citiesData.forEach(function(city) {
+    var location = [+city.longitude, +city.latitude];
+    locationCity[city.name] = location;
+    cityPositions.push(projection(location));
+    return true;
+  });
+
+  circles.selectAll("circle")
+      .data(citiesData)
+    .enter().append("svg:circle")
+      .attr("cx", function(d, i) { 
+                                  return cityPositions[i][0]; 
+                                 })
+      .attr("cy", function(d, i) { return cityPositions[i][1]; })
+      .attr("r", 0);
+
+  d3.csv("school-city.csv", function(migrations) {
+
+    migrations.forEach(function(migration) {
+      var school = migration.school,
+          city = migration.city,
+          gradcount = migration.gradcount;
+      linksSchoolToCity.push({source: school, target: city, gradCount: gradcount });
+    });
+ 
+    d3.csv("schools.csv", function(schools) {
+      if(schools===null) return false;
+      var schoolPositions = [];
+
+      schoolsData = schools.slice(0);
+      schools.forEach( function(school) {
+        var location = [+school.longitude, +school.latitude];
+        locationSchool[school.name] = location;
+        schoolPositions.push(projection(location));
+        return true;
+      });
+
+    schoolCircles.selectAll("schoolCircle")
+        .data(schoolsData)
+      .enter().append("svg:circle")
+        .attr("cx", function(d, i) { 
+                                    return schoolPositions[i][0]; 
+                                   })
+        .attr("cy", function(d, i) { return schoolPositions[i][1]; })
+        .attr("r", 5)
+        .classed("schoolCircle", 1)
+        .on("mouseover", function(){
+                                    d3.select(this).style("fill", "#FFCC00");
+                                    dispatch.itemHover(this.__data__.name);
+                                   })
+        .on("mouseout", function(){
+                                    d3.select(this).style("fill", "#222");
+                                    dispatch.itemUnhover(this.__data__.name);
+                                  });
+
+    schoolText.selectAll("schoolText")
+        .data(schoolsData)
+      .enter().append("svg:text")
+        .attr("dx", function(d, i) { 
+                                    return schoolPositions[i][0] + 7; 
+                                   })
+        .attr("dy", function(d, i) { return schoolPositions[i][1] + 5; })
+        .style("font-size", "12px")
+        .style("font-family", "sans-serif")
+        .text(function(d) { return d.name; });
+
+    });
+
+  });
+});
+
+    </script>
+  </body>
+</html>
