@@ -200,14 +200,14 @@ dispatch.on("itemUnhover", function(arg) {
 
 });
 
-d3.json("us-states.json", function(collection) {
+d3.json("https://github.com/frankwmoyer/linkedin/blob/master/us-states.json", function(collection) {
   states.selectAll("path")
       .data(collection.features)
     .enter().append("svg:path")
       .attr("d", path);
 });
 
-d3.csv("cities.csv", function(cities) {
+d3.csv("https://github.com/frankwmoyer/linkedin/blob/master/cities.csv", function(cities) {
 
   if(cities===null) {
     return false;
@@ -231,7 +231,7 @@ d3.csv("cities.csv", function(cities) {
       .attr("cy", function(d, i) { return cityPositions[i][1]; })
       .attr("r", 0);
 
-  d3.csv("school-city.csv", function(migrations) {
+  d3.csv("https://github.com/frankwmoyer/linkedin/blob/master/school-city.csv", function(migrations) {
 
     migrations.forEach(function(migration) {
       var school = migration.school,
@@ -240,7 +240,7 @@ d3.csv("cities.csv", function(cities) {
       linksSchoolToCity.push({source: school, target: city, gradCount: gradcount });
     });
  
-    d3.csv("schools.csv", function(schools) {
+    d3.csv("https://github.com/frankwmoyer/linkedin/blob/master/schools.csv", function(schools) {
       if(schools===null) return false;
       var schoolPositions = [];
 
